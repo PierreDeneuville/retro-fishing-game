@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Angler: Enhanced Version</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #333;
+            font-family: Arial, sans-serif;
+        }
+        #gameCanvas {
+            border: 2px solid #fff;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="450"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game state
+        let gameState = 'CASTING';
+        let power = 0;
+        let increasing = true;
+        let score = 0;
+        let timeOfDay = 0;
+        let fishes = [];
+        let particles = [];
+        let notifications = [];
+        let hookPosition = { x: 0, y: 0 };
+        let isBiting = false;
+        let biteTimer = 0;
+        let dayTimer = 0;
+        const DAY_DURATION = 45 * 60;
+
+        // Colors
+        const skyColors = ['#FFB3BA', '#BAFFC9', '#BAE1FF'];
+        const waterColors = ['#4A7B9D', '#3D9970', '#001F3F'];
+
+        // Progression System
+        const PROGRESSION_ITEMS = {
+            FISHING_HAT: {
+                name: "Fishing Hat",
+                scoreRequired: 500,
+                colors: {
+                    DAY: '#F4A460',
+                    DAWN: '#4A4A4A',
+                    DUSK: '#696969'
+                }
+            },
+            WOODEN_CHAIR: {
+                name: "Wooden Chair",
+                scoreRequired: 1000,
+                colors: {
+                    DAY: '#8B4513',
+                    DAWN: '#2F2F2F',
+                    DUSK: '#3F3F3F'
+                }
+            },
+            COOLER_BOX: {
+                name: "Cooler Box",
+                scoreRequired: 1500,
+                colors: {
+                    DAY: '#4169E1',
+                    DAWN: '#2F4F4F',
+                    DUSK: '#363636'
+                }
+            },
+            PARASOL: {
+                name: "Parasol",
+                scoreRequired: 2000,
+                colors: {
+                    DAY: '#FF69B4',
+                    DAWN: '#4A4A4A',
+                    DUSK: '#555555'
+                }
+            },
+            LANTERN: {
+                name: "Lantern",
+                scoreRequired: 2500,
+                colors: {
+                    DAY: '#696969',
+                    DAWN: '#FFD700',
+                    DUSK: '#FFA500'
+                },
+                glowColor: {
+                    DAY: 'rgba(255, 215, 0, 0)',
+                    DAWN: 'rgba(255, 215, 0, 0.3)',
+                    DUSK: 'rgba(255, 165, 0, 0.4)'
+                }
+            },
+            FISHING_BUCKET: {
+                name: "Fishing Bucket",
+                scoreRequired: 3000,
+                colors: {
+                    DAY: '#C0C0C0',
+                    DAWN: '#4A4A4A',
+                    DUSK: '#555555'
+                }
+            },
+            SECOND_ROD: {
+                name: "Second Fishing Rod",
+                scoreRequired: 3500,
+                colors: {
+                    DAY: '#8B4513',
+                    DAWN: '#2F2F2F',
+                    DUSK: '#3F3F3F'
+                }
+            },
+            PET: {
+                name: "Pet Dog",
+                scoreRequired: 4000,
+                colors: {
+                    DAY: '#8B4513',
+                    DAWN: '#2F2F2F',
+                    DUSK: '#3F3F3F'
+                }
+            },
+            FISHING_NET: {
+                name: "Fishing Net",
+                scoreRequired: 4500,
+                colors: {
+                    DAY: '#BDB76B',
+                    DAWN: '#2F4F4F',
+                    DUSK: '#363636'
+                }
+            },
+            CAMPING_TABLE: {
+                name: "Camping Table",
+                scoreRequired: 5000,
+                colors: {
+                    DAY: '#DEB887',
+                    DAWN: '#2F2F2F',
+                    DUSK: '#3F3F3F'
+                }
+            },
+            RADIO: {
+                name: "Radio",
+                scoreRequired: 5500,
+                colors: {
+                    DAY: '#696969',
+                    DAWN: '#2F2F2F',
+                    DUSK: '#3F3F3F'
+                }
+            },
+            TACKLE_BOX: {
+                name: "Tackle Box",
+                scoreRequired: 6000,
+                colors: {
+                    DAY: '#CD853F',
+                    DAWN: '#2F2F2F',
+                    DUSK: '#3F3F3F'
+                }
+            },
+            TROPHY: {
+                name: "Fishing Trophy",
+                scoreRequired: 6500,
+                colors: {
+                    DAY: '#FFD700',
+                    DAWN: '#4A4A4A',
+                    DUSK: '#555555'
+                }
+            },
+            MINI_TENT: {
+                name: "Mini Tent",
+                scoreRequired: 7000,
+                colors: {
+                    DAY: '#228B22',
+                    DAWN: '#2F4F4F',
+                    DUSK: '#363636'
+                }
+            },
+            LUXURY_UPGRADE: {
+                name: "Luxury Upgrade",
+                scoreRequired: 7500,
+                colors: {
+                    DAY: '#8B4513',
+                    DAWN: '#2F2F2F',
+                    DUSK: '#3F3F3F'
+                },
+                lightColors: {
+                    DAY: 'rgba(255, 215, 0, 0)',
+                    DAWN: 'rgba(255, 215, 0, 0.2)',
+                    DUSK: 'rgba(255, 165, 0, 0.4)'
+                }
+            }
+        };
+
+        // Fish types
+        const FISH_TYPES = {
+            COMMON: {
+                color: '#FFD700',
+                size: 20,
+                baseSpeed: 1,
+                points: 10,
+                spawnChance: 0.5,
+                name: "Common Fish"
+            },
+            QUICK: {
+                color: '#FF4500',
+                size: 15,
+                baseSpeed: 2.5,
+                points: 25,
+                spawnChance: 0.3,
+                name: "Quick Fish"
+            },
+            RARE: {
+                color: '#4169E1',
+                size: 25,
+                baseSpeed: 0.7,
+                points: 50,
+                spawnChance: 0.15,
+                name: "Rare Fish"
+            },
+            LEGENDARY: {
+                color: '#9400D3',
+                size: 30,
+                baseSpeed: 1.5,
+                points: 100,
+                spawnChance: 0.05,
+                name: "Legendary Fish"
+            }
+        };
+
+        // Helper Functions
+        function getUnlockedItems(score) {
+            return Object.entries(PROGRESSION_ITEMS)
+                .filter(([_, item]) => score >= item.scoreRequired)
+                .map(([key, _]) => key);
+        }
+
+        function showUnlockNotification(itemName) {
+            notifications.push({
+                text: `New Item Unlocked: ${itemName}!`,
+                life: 180,  // 3 seconds at 60 FPS
+                y: 150
+            });
+        }
+
+        // Particle Class
+        class Particle {
+            constructor(x, y, color, text = '') {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.text = text;
+                this.life = 60;
+                this.velocity = {
+                    x: (Math.random() - 0.5) * 4,
+                    y: -Math.random() * 4 - 2
+                };
+            }
+
+            update() {
+                this.life--;
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+                this.velocity.y += 0.1;
+            }
+
+            draw() {
+                ctx.globalAlpha = this.life / 60;
+                if (this.text) {
+                    ctx.fillStyle = this.color;
+                    ctx.font = '20px Arial';
+                    ctx.fillText(this.text, this.x, this.y);
+                } else {
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        // Fish Class
+        class Fish {
+            constructor() {
+                this.type = this.selectType();
+                this.spawn();
+                this.respawnTimer = 0;
+            }
+
+            selectType() {
+                const rand = Math.random();
+                let cumulative = 0;
+                for (const [type, props] of Object.entries(FISH_TYPES)) {
+                    cumulative += props.spawnChance;
+                    if (rand <= cumulative) return type;
+                }
+                return 'COMMON';
+            }
+
+            spawn() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * (canvas.height / 2) + (canvas.height / 2);
+                this.speedX = Math.random() * FISH_TYPES[this.type].baseSpeed + 0.5;
+                this.speedY = (Math.random() - 0.5) * 1.5;
+                this.direction = Math.random() < 0.5 ? -1 : 1;
+                this.active = true;
+                this.sinOffset = Math.random() * Math.PI * 2;
+                this.sinAmp = Math.random() * 1.5;
+            }
+
+            update() {
+                if (!this.active) {
+                    this.respawnTimer++;
+                    if (this.respawnTimer >= 300) {
+                        this.type = this.selectType();
+                        this.spawn();
+                        this.respawnTimer = 0;
+                        this.createRespawnEffect();
+                    }
+                    return;
+                }
+
+                this.x += this.speedX * this.direction;
+                if (this.type === 'QUICK') {
+                    this.y += Math.sin(this.sinOffset + this.x * 0.05) * this.sinAmp;
+                } else {
+                    this.y += this.speedY;
+                }
+
+                if (this.x < 0 || this.x > canvas.width) {
+                    this.direction *= -1;
+                }
+
+                if (this.y < canvas.height / 2 || this.y > canvas.height) {
+                    this.speedY *= -1;
+                }
+
+                if (Math.random() < 0.02) {
+                    this.speedY = (Math.random() - 0.5) * 1.5;
+                }
+            }
+
+            draw() {
+                if (!this.active) return;
+
+                const type = FISH_TYPES[this.type];
+                ctx.fillStyle = type.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - type.size * this.direction, this.y - type.size/2);
+                ctx.lineTo(this.x - type.size * this.direction, this.y + type.size/2);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            checkBite() {
+                if (!this.active) return false;
+                const distance = Math.sqrt(Math.pow(this.x - hookPosition.x, 2) + Math.pow(this.y - hookPosition.y, 2));
+                return distance < FISH_TYPES[this.type].size * 1.5;
+            }
+
+            catch() {
+                this.active = false;
+                this.respawnTimer = 0;
+                this.createCatchEffect();
+            }
+
+            createCatchEffect() {
+                const type = FISH_TYPES[this.type];
+                // Score text particle
+                particles.push(new Particle(this.x, this.y, type.color, `+${type.points}!`));
+                // Sparkle particles
+                for (let i = 0; i < 10; i++) {
+                    particles.push(new Particle(this.x, this.y, type.color));
+                }
+            }
+
+            createRespawnEffect() {
+                const type = FISH_TYPES[this.type];
+                for (let i = 0; i < 5; i++) {
+                    particles.push(new Particle(this.x, this.y, type.color));
+                }
+            }
+        }
+
+        // Drawing Functions
+        function drawFisherman(x, y, unlockedItems) {
+            const timeOfDayName = ['DAWN', 'DAY', 'DUSK'][timeOfDay];
+            const dockLevel = y - 20; // Base level of the dock
+
+            // Draw ground decorations first (Luxury Upgrade)
+            if (unlockedItems.includes('LUXURY_UPGRADE')) {
+                // Draw rug centered under the fishing area
+                const rugColor = PROGRESSION_ITEMS.LUXURY_UPGRADE.colors[timeOfDayName];
+                ctx.fillStyle = rugColor;
+                ctx.fillRect(x - 50, dockLevel, 140, 5);
+                
+                // Draw string lights spanning the dock area
+                const lightColor = PROGRESSION_ITEMS.LUXURY_UPGRADE.lightColors[timeOfDayName];
+                if (timeOfDayName !== 'DAY') {
+                    ctx.fillStyle = lightColor;
+                    for (let i = 0; i < 5; i++) {
+                        ctx.beginPath();
+                        ctx.arc(x - 40 + i * 30, dockLevel - 70, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.arc(x - 40 + i * 30, dockLevel - 70, 15, 0, Math.PI * 2);
+                        ctx.fillStyle = lightColor;
+                        ctx.fill();
+                    }
+                }
+            }
+
+            // Draw Mini Tent (at the far left of the dock)
+            if (unlockedItems.includes('MINI_TENT')) {
+                const tentColor = PROGRESSION_ITEMS.MINI_TENT.colors[timeOfDayName];
+                ctx.fillStyle = tentColor;
+                ctx.beginPath();
+                ctx.moveTo(x - 120, dockLevel);
+                ctx.lineTo(x - 90, dockLevel - 40);
+                ctx.lineTo(x - 60, dockLevel);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Draw Camping Table (to the left of the fisherman)
+            if (unlockedItems.includes('CAMPING_TABLE')) {
+                const tableColor = PROGRESSION_ITEMS.CAMPING_TABLE.colors[timeOfDayName];
+                ctx.fillStyle = tableColor;
+                // Table top
+                ctx.fillRect(x - 40, dockLevel - 20, 30, 5);
+                // Table legs
+                ctx.fillRect(x - 35, dockLevel - 15, 5, 15);
+                ctx.fillRect(x - 20, dockLevel - 15, 5, 15);
+                // Draw items on table
+                ctx.fillStyle = '#FF0000';  // Cup
+                ctx.fillRect(x - 30, dockLevel - 25, 8, 5);
+            }
+
+            // Draw Wooden Chair (where the fisherman sits)
+            if (unlockedItems.includes('WOODEN_CHAIR')) {
+                const chairColor = PROGRESSION_ITEMS.WOODEN_CHAIR.colors[timeOfDayName];
+                ctx.fillStyle = chairColor;
+                ctx.fillRect(x - 10, dockLevel - 30, 10, 30);  // Chair back
+                ctx.fillRect(x - 10, dockLevel - 20, 30, 10);  // Chair seat
+            }
+
+            // Draw Cooler Box (next to the chair)
+            if (unlockedItems.includes('COOLER_BOX')) {
+                const coolerColor = PROGRESSION_ITEMS.COOLER_BOX.colors[timeOfDayName];
+                ctx.fillStyle = coolerColor;
+                ctx.fillRect(x + 30, dockLevel - 15, 25, 15);
+                ctx.fillRect(x + 30, dockLevel - 17, 25, 2); // Lid
+            }
+
+            // Draw Fishing Bucket (in front of the chair)
+            if (unlockedItems.includes('FISHING_BUCKET')) {
+                const bucketColor = PROGRESSION_ITEMS.FISHING_BUCKET.colors[timeOfDayName];
+                ctx.fillStyle = bucketColor;
+                // Tapered bucket shape
+                ctx.beginPath();
+                ctx.moveTo(x + 5, dockLevel - 15);
+                ctx.lineTo(x + 10, dockLevel - 5);
+                ctx.lineTo(x + 25, dockLevel - 5);
+                ctx.lineTo(x + 30, dockLevel - 15);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Draw Tackle Box (next to the cooler)
+            if (unlockedItems.includes('TACKLE_BOX')) {
+                const tackleColor = PROGRESSION_ITEMS.TACKLE_BOX.colors[timeOfDayName];
+                ctx.fillStyle = tackleColor;
+                ctx.fillRect(x + 60, dockLevel - 10, 20, 10);
+                ctx.fillRect(x + 60, dockLevel - 12, 20, 2); // Lid
+            }
+
+            // Draw Fishing Net (hanging on the left side)
+            if (unlockedItems.includes('FISHING_NET')) {
+                const netColor = PROGRESSION_ITEMS.FISHING_NET.colors[timeOfDayName];
+                ctx.strokeStyle = netColor;
+                ctx.lineWidth = 1;
+                // Draw net pattern
+                for (let i = 0; i < 4; i++) {
+                    for (let j = 0; j < 4; j++) {
+                        ctx.strokeRect(x - 140 + i * 8, dockLevel - 40 + j * 8, 8, 8);
+                    }
+                }
+            }
+
+            // Base fisherman
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x, dockLevel - 40, 40, 40);
+
+            // Draw Pet (sitting beside the fisherman)
+            if (unlockedItems.includes('PET')) {
+                const petColor = PROGRESSION_ITEMS.PET.colors[timeOfDayName];
+                ctx.fillStyle = petColor;
+                // Dog body
+                ctx.fillRect(x - 25, dockLevel - 15, 15, 12);
+                // Dog head
+                ctx.fillRect(x - 30, dockLevel - 23, 12, 12);
+                // Dog tail
+                ctx.beginPath();
+                ctx.moveTo(x - 10, dockLevel - 10);
+                ctx.lineTo(x - 5, dockLevel - 15);
+                ctx.lineTo(x, dockLevel - 10);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Draw Parasol (behind the fisherman)
+            if (unlockedItems.includes('PARASOL')) {
+                const parasolColor = PROGRESSION_ITEMS.PARASOL.colors[timeOfDayName];
+                ctx.fillStyle = parasolColor;
+                // Parasol pole
+                ctx.fillRect(x + 15, dockLevel - 80, 3, 80);
+                // Parasol top
+                ctx.beginPath();
+                ctx.moveTo(x - 10, dockLevel - 65);
+                ctx.quadraticCurveTo(x + 15, dockLevel - 90, x + 40, dockLevel - 65);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Draw Fishing Hat (on fisherman)
+            if (unlockedItems.includes('FISHING_HAT')) {
+                const hatColor = PROGRESSION_ITEMS.FISHING_HAT.colors[timeOfDayName];
+                ctx.fillStyle = hatColor;
+                ctx.beginPath();
+                ctx.moveTo(x, dockLevel - 45);
+                ctx.lineTo(x + 40, dockLevel - 45);
+                ctx.lineTo(x + 30, dockLevel - 55);
+                ctx.lineTo(x + 10, dockLevel - 55);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Draw Second Rod (leaning against the dock rail)
+            if (unlockedItems.includes('SECOND_ROD')) {
+                const rodColor = PROGRESSION_ITEMS.SECOND_ROD.colors[timeOfDayName];
+                ctx.strokeStyle = rodColor;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x - 50, dockLevel);
+                ctx.lineTo(x - 70, dockLevel - 40);
+                ctx.stroke();
+            }
+
+            // Draw Lantern (on the camping table)
+            if (unlockedItems.includes('LANTERN')) {
+                const lanternColor = PROGRESSION_ITEMS.LANTERN.colors[timeOfDayName];
+                const glowColor = PROGRESSION_ITEMS.LANTERN.glowColor[timeOfDayName];
+                
+                // Lantern body
+                ctx.fillStyle = lanternColor;
+                ctx.fillRect(x - 25, dockLevel - 35, 10, 15);
+                
+                // Lantern glow (dawn and dusk)
+                if (timeOfDayName !== 'DAY') {
+                    ctx.beginPath();
+                    ctx.arc(x - 20, dockLevel - 27, 15, 0, Math.PI * 2);
+                    ctx.fillStyle = glowColor;
+                    ctx.fill();
+                }
+            }
+
+            // Draw Radio (on the camping table)
+            if (unlockedItems.includes('RADIO')) {
+                const radioColor = PROGRESSION_ITEMS.RADIO.colors[timeOfDayName];
+                ctx.fillStyle = radioColor;
+                ctx.fillRect(x - 40, dockLevel - 30, 15, 10);
+                
+                // Draw musical notes if it's day time
+                if (timeOfDayName === 'DAY') {
+                    ctx.fillStyle = '#000000';
+                    ctx.font = '12px Arial';
+                    ctx.fillText('♪', x - 35, dockLevel - 35);
+                    ctx.fillText('♫', x - 25, dockLevel - 40);
+                }
+            }
+
+            // Draw Trophy (on the camping table)
+            if (unlockedItems.includes('TROPHY')) {
+                const trophyColor = PROGRESSION_ITEMS.TROPHY.colors[timeOfDayName];
+                ctx.fillStyle = trophyColor;
+                // Trophy cup
+                ctx.beginPath();
+                ctx.moveTo(x - 15, dockLevel - 35);
+                ctx.lineTo(x - 10, dockLevel - 45);
+                ctx.lineTo(x - 5, dockLevel - 35);
+                ctx.closePath();
+                ctx.fill();
+                // Trophy base
+                ctx.fillRect(x - 12, dockLevel - 35, 4, 10);
+            }
+        }
+
+        function drawScene() {
+            // Sky
+            ctx.fillStyle = skyColors[timeOfDay];
+            ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+
+            // Water
+            ctx.fillStyle = waterColors[timeOfDay];
+            ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+
+            // Pier
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(0, canvas.height / 2 - 20, 200, 20);
+
+            // Get unlocked items based on current score
+            const unlockedItems = getUnlockedItems(score);
+
+            // Draw fisherman with unlocked items
+            drawFisherman(160, canvas.height / 2, unlockedItems);
+
+            // Fishing rod
+            ctx.beginPath();
+            ctx.moveTo(200, canvas.height / 2 - 40);
+            ctx.lineTo(240, canvas.height / 2 - 80);
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Fishing line
+            if (gameState === 'WAITING') {
+                ctx.beginPath();
+                ctx.moveTo(240, canvas.height / 2 - 80);
+                ctx.lineTo(hookPosition.x, hookPosition.y);
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // Hook
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(hookPosition.x, hookPosition.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw fishes
+            fishes.forEach(fish => fish.draw());
+
+            // Draw particles
+            particles.forEach(particle => particle.draw());
+
+            // Power bar
+            if (gameState === 'CASTING') {
+                ctx.fillStyle = '#FF0000';
+                ctx.fillRect(10, 10, power * 4, 20);
+            }
+
+            // UI elements
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 50);
+
+            // Next unlock information
+            const nextUnlock = Object.values(PROGRESSION_ITEMS)
+                .find(item => item.scoreRequired > score);
+            if (nextUnlock) {
+                ctx.fillText(`Next unlock at ${nextUnlock.scoreRequired} points: ${nextUnlock.name}`, 10, 80);
+            }
+
+            const remainingTime = Math.ceil((DAY_DURATION - dayTimer) / 60);
+            ctx.fillText(`Time left: ${remainingTime}s`, 10, 110);
+
+            // Draw notifications
+            notifications.forEach((notif, index) => {
+                ctx.fillStyle = `rgba(255, 255, 255, ${notif.life / 180})`;
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(notif.text, canvas.width / 2, notif.y);
+            });
+            ctx.textAlign = 'left';
+
+            // Biting indicator
+            if (isBiting) {
+                const bitingFish = fishes.find(fish => fish.checkBite());
+                if (bitingFish) {
+                    ctx.fillStyle = FISH_TYPES[bitingFish.type].color;
+                    ctx.font = '30px Arial';
+                    ctx.fillText('!', hookPosition.x - 5, hookPosition.y - 20);
+                }
+            }
+        }
+
+        function initializeFishes() {
+            fishes = [];
+            for (let i = 0; i < 15; i++) {
+                fishes.push(new Fish());
+            }
+        }
+
+        function updateGame() {
+            dayTimer++;
+            if (dayTimer >= DAY_DURATION) {
+                timeOfDay = (timeOfDay + 1) % 3;
+                initializeFishes();
+                dayTimer = 0;
+            }
+
+            if (gameState === 'CASTING') {
+                if (increasing) {
+                    power++;
+                    if (power >= 50) increasing = false;
+                } else {
+                    power--;
+                    if (power <= 0) increasing = true;
+                }
+            }
+
+            // Update fishes
+            fishes.forEach(fish => fish.update());
+            
+            if (gameState === 'WAITING') {
+                isBiting = fishes.some(fish => fish.checkBite());
+                if (isBiting) {
+                    biteTimer++;
+                    if (biteTimer > 60) {
+                        isBiting = false;
+                        biteTimer = 0;
+                    }
+                }
+            }
+
+            // Update notifications
+            notifications = notifications
+                .map(notif => ({...notif, life: notif.life - 1}))
+                .filter(notif => notif.life > 0);
+
+            // Update particles
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(particle => particle.update());
+
+            drawScene();
+            requestAnimationFrame(updateGame);
+        }
+
+        // Click Handler
+        function handleClick() {
+            if (gameState === 'CASTING') {
+                gameState = 'WAITING';
+                hookPosition.x = 240 + power * 8;
+                hookPosition.y = canvas.height / 2 + 50;
+                power = 0;
+            } else if (gameState === 'WAITING') {
+                if (isBiting) {
+                    const caughtFish = fishes.find(fish => fish.checkBite());
+                    if (caughtFish) {
+                        const previousUnlocks = getUnlockedItems(score);
+                        
+                        // Add points
+                        score += FISH_TYPES[caughtFish.type].points;
+                        
+                        // Check for new unlocks
+                        const currentUnlocks = getUnlockedItems(score);
+                        currentUnlocks.forEach(itemKey => {
+                            if (!previousUnlocks.includes(itemKey)) {
+                                showUnlockNotification(PROGRESSION_ITEMS[itemKey].name);
+                            }
+                        });
+                        
+                        caughtFish.catch();
+                    }
+                }
+                gameState = 'CASTING';
+                isBiting = false;
+                biteTimer = 0;
+            }
+        }
+
+        // Event Listeners
+        canvas.addEventListener('click', handleClick);
+
+        // Initialize and Start Game
+        initializeFishes();
+        updateGame();
+    </script>
+</body>
+</html>
